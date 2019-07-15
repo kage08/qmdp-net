@@ -78,14 +78,13 @@ class QMDPNet:
         map, goal, b0, isstart, act_in, obs_in, weight, act_label = self.placeholders # TODO clean up
 
         # types conversions
-        map = tf.to_float(map)
-        goal = tf.to_float(goal)
-        isstart = tf.to_float(isstart)
+        map = tf.cast(map, tf.float32)
+        goal = tf.cast(goal, tf.float32)
+        isstart = tf.cast(isstart, tf.float32)
         isstart = tf.reshape(isstart, [self.batch_size] + [1]*(b0.get_shape().ndims-1))
-        act_in = tf.to_int32(act_in)
-        obs_in = tf.to_float(obs_in)
-        act_label = tf.to_int32(act_label)
-
+        act_in = tf.cast(act_in, tf.int32)
+        obs_in = tf.cast(obs_in, tf.float32)
+        act_label = tf.cast(act_label, tf.int32)
         outputs = []
 
         # pre-compute context, fixed through time
@@ -248,7 +247,7 @@ class PlannerNet():
             # apply transition and sum
             Q = tf.nn.conv2d(V, kernel, [1, 1, 1, 1], padding='SAME')
             Q = Q + R
-            V = tf.reduce_max(Q, axis=[3], keep_dims=True)
+            V = tf.reduce_max(Q, axis=[3], keepdims=True)
 
         return Q, V, R
 
@@ -270,7 +269,7 @@ class PlannerNet():
         b_tiled = tf.tile(tf.expand_dims(b, 3), [1, 1, 1, params.num_action])
         q = tf.multiply(Q, b_tiled)
         # sum over states
-        q = tf.reduce_sum(q, [1, 2], keep_dims=False)
+        q = tf.reduce_sum(q, [1, 2], keepdims=False)
 
         # low-level policy, f_pi
         action_pred = PlannerNet.f_pi(q, params.num_action)
@@ -291,8 +290,8 @@ class FilterNet():
         Z = conv_layers(map, np.array([[3, 150, 'lin'], [1, 17, 'sig']]), "Z_conv")
 
         # normalize over observations
-        Z_sum = tf.reduce_sum(Z, [3], keep_dims=True)
-        Z = tf.div(Z, Z_sum + 1e-8)  # add a small number to avoid division by zero
+        Z_sum = tf.reduce_sum(Z, [3], keepdims=True)
+        Z = tf.math.divide(Z, Z_sum + 1e-8)  # add a small number to avoid division by zero
 
         return Z
 
@@ -315,7 +314,7 @@ class FilterNet():
         kernel = tf.get_variable("w_T_conv", [3 * 3, num_action], initializer=initializer, dtype=tf.float32)
 
         # enforce proper probability distribution (i.e. values must sum to one) by softmax
-        kernel = tf.nn.softmax(kernel, dim=0)
+        kernel = tf.nn.softmax(kernel, axis=0)
         kernel = tf.reshape(kernel, [3, 3, 1, num_action], name="T_w")
 
         return kernel
@@ -340,7 +339,7 @@ class FilterNet():
         # index into the appropriate channel of b_prime
         w_A = FilterNet.f_A(action, params.num_action)
         w_A = w_A[:, None, None]
-        b_prime_a = tf.reduce_sum(tf.multiply(b_prime, w_A), [3], keep_dims=False) # soft indexing
+        b_prime_a = tf.reduce_sum(tf.multiply(b_prime, w_A), [3], keepdims=False) # soft indexing
 
         #b_prime_a = tf.abs(b_prime_a) # TODO there was this line. does it make a difference with softmax?
 
@@ -348,13 +347,13 @@ class FilterNet():
         # get observation probabilities for the obseravtion input by soft indexing
         w_O = FilterNet.f_O(local_obs)
         w_O = w_O[:,None,None] #tf.expand_dims(tf.expand_dims(w_O, axis=1), axis=1)
-        Z_o = tf.reduce_sum(tf.multiply(Z, w_O), [3], keep_dims=False) # soft indexing
+        Z_o = tf.reduce_sum(tf.multiply(Z, w_O), [3], keepdims=False) # soft indexing
 
         b_next = tf.multiply(b_prime_a, Z_o)
 
         # step 3: normalize over the state space
         # add small number to avoid division by zero
-        b_next = tf.div(b_next, tf.reduce_sum(b_next, [1, 2], keep_dims=True) + 1e-8)
+        b_next = tf.math.divide(b_next, tf.reduce_sum(b_next, [1, 2], keepdims=True) + 1e-8)
 
         return b_next
 
@@ -469,7 +468,7 @@ def activation(tensor, activation_name):
     elif activation_name in ['s', 'sig']:
         tensor = tf.nn.sigmoid(tensor)
     elif activation_name in ['sm', 'smax']:
-        tensor = tf.nn.softmax(tensor, dim=-1)
+        tensor = tf.nn.softmax(tensor, axis=-1)
     else:
         raise NotImplementedError
 

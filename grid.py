@@ -1,6 +1,6 @@
 import argparse, os, random, shutil
 import numpy as np, scipy.sparse
-import cPickle as pickle
+import pickle
 import tables
 
 from utils import dijkstra
